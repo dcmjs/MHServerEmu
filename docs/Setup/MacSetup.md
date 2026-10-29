@@ -57,6 +57,19 @@ If port 8080 is already in use, change it in a `ConfigOverride.ini` next to `Con
 Port=4002
 ```
 
+## Run From a Read-Only Location
+
+By default the server writes into its own directory. To run it from a read-only location (for example inside an app bundle), point the files it writes somewhere else:
+
+```bash
+dotnet MHServerEmu.dll --data-dir "$HOME/Library/Application Support/MHServerEmu" --config-override /path/to/ConfigOverride.ini
+```
+
+- `--data-dir <path>` holds everything the server writes: `ConfigOverride.ini` (unless `--config-override` is given), the account database and its backups, `Leaderboards/`, `Web/ApiKeys.json`, `Logs/` and `CrashReports/`. The directory is created if needed. Database file names from the config (for example `[SQLiteDBManager] FileName`) are relative to it, and can also be absolute paths.
+- `--config-override <path>` uses a specific config override file instead of `ConfigOverride.ini`. If the file doesn't exist, an empty one is created.
+
+Everything else is only read and stays in the server directory: `Config.ini`, `Data/Game` (including `Calligraphy.sip` and `mu_cdata.sip`) and `Data/Web`.
+
 ## Configure the Gateway
 
 The client is stricter about addresses than its settings suggest:

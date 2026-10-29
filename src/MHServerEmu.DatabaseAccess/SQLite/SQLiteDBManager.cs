@@ -39,7 +39,7 @@ namespace MHServerEmu.DatabaseAccess.SQLite
         {
             var config = ConfigManager.Instance.GetConfig<SQLiteDBManagerConfig>();
 
-            _dbFilePath = Path.Combine(FileHelper.DataDirectory, config.FileName);
+            _dbFilePath = Path.Combine(FileHelper.UserDataDirectory, config.FileName);
             _connectionString = $"Data Source={_dbFilePath};Synchronous=NORMAL;foreign_keys=OFF;";
 
             // TODO: Foreign key constraints are explicitly disabled for now because our Item table references

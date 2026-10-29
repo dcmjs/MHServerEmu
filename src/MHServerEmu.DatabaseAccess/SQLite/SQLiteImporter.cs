@@ -43,7 +43,7 @@ namespace MHServerEmu.DatabaseAccess.SQLite
             ArgumentOutOfRangeException.ThrowIfGreaterThan(machineId, MachineIdMaxSize);
 
             _fileName = Path.GetFileName(fileName);
-            _filePath = Path.Combine(FileHelper.DataDirectory, fileName);
+            _filePath = Path.Combine(FileHelper.UserDataDirectory, fileName);
             _connectionString = $"Data Source={_filePath};Synchronous=NORMAL;foreign_keys=OFF;";
 
             _machineIdBits = (machineId & MachineIdMaxSize) << MachineIdOffset;
@@ -66,7 +66,7 @@ namespace MHServerEmu.DatabaseAccess.SQLite
             // Back up original DB file
             Logger.Info("Backing up database...");
             var config = ConfigManager.Instance.GetConfig<SQLiteDBManagerConfig>();
-            string currentDBFilePath = Path.Combine(FileHelper.DataDirectory, config.FileName);
+            string currentDBFilePath = Path.Combine(FileHelper.UserDataDirectory, config.FileName);
             string backupDBFilePath = $"{currentDBFilePath}.preimport";
             File.Copy(currentDBFilePath, backupDBFilePath);
 

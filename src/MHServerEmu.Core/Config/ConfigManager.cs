@@ -24,7 +24,7 @@ namespace MHServerEmu.Core.Config
             string configPath = Path.Combine(FileHelper.ServerRoot, "Config.ini");
             _iniFile = new(configPath);
 
-            string overridePath = Path.Combine(FileHelper.ServerRoot, "ConfigOverride.ini");
+            string overridePath = FileHelper.ConfigOverridePath;
             if (File.Exists(overridePath))
                 _overrideFile = new(overridePath);
             else

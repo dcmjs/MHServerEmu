@@ -17,7 +17,7 @@ namespace MHServerEmu.Core.Logging.Targets
         {
             _splitOutput = splitOutput;
 
-            string logDirectory = Path.Combine(FileHelper.ServerRoot, "Logs");
+            string logDirectory = Path.Combine(FileHelper.UserDirectory, "Logs");
             if (Directory.Exists(logDirectory) == false)
                 Directory.CreateDirectory(logDirectory);
 

@@ -30,7 +30,7 @@ namespace MHServerEmu.DatabaseAccess.Json
         public bool Initialize()
         {
             var config = ConfigManager.Instance.GetConfig<JsonDBManagerConfig>();
-            _accountFilePath = Path.Combine(FileHelper.DataDirectory, config.FileName);
+            _accountFilePath = Path.Combine(FileHelper.UserDataDirectory, config.FileName);
 
             _jsonOptions = new();
             _jsonOptions.Converters.Add(new DBEntityCollectionJsonConverter());

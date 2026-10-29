@@ -24,7 +24,7 @@ namespace MHServerEmu.Leaderboards
         private const ulong UpdateTimeIntervalMS = 30 * 1000;   // 30 seconds
 
         private static readonly Logger Logger = LogManager.CreateLogger();
-        private static readonly string LeaderboardsDirectory = Path.Combine(FileHelper.DataDirectory, "Leaderboards");
+        private static readonly string LeaderboardsDirectory = Path.Combine(FileHelper.UserDataDirectory, "Leaderboards");
 
         private readonly object _leaderboardLock = new();
 

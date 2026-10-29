@@ -60,6 +60,9 @@ namespace MHServerEmu
 
         private static readonly Logger Logger = LogManager.CreateLogger();
         private State _state = State.Created;
+        private int _isShuttingDown;
+        private readonly ManualResetEventSlim _shutdownEvent = new(false);
+        private PosixSignalRegistration[] _signalRegistrations;
 
         public static ServerApp Instance { get; } = new();
         public DateTime StartupTime { get; private set; }
@@ -129,8 +132,49 @@ namespace MHServerEmu
             // We can't set Live Tuning event message on the Grouping Manager until after we initialize it, so do it here I guess.
             LiveTuningEventScheduler.Instance.SendEventMessageTextToGroupingManager();
 
-            // Begin processing console input
+            // Shut down cleanly when the process is asked to stop (Ctrl+C, kill, service manager, etc.) so that player data gets saved.
+            _signalRegistrations =
+            [
+                PosixSignalRegistration.Create(PosixSignal.SIGINT, OnShutdownSignal),
+                PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnShutdownSignal),
+            ];
+
+            // Begin processing console input. This is done on a background thread so that we
+            // can exit as soon as the server shuts down without waiting for another line of input.
             Logger.Info("Type '!commands' for a list of available commands");
+            Thread consoleThread = new(ProcessConsoleInput) { Name = "Console Input", IsBackground = true, CurrentCulture = CultureInfo.InvariantCulture };
+            consoleThread.Start();
+
+            _shutdownEvent.Wait();
+
+            foreach (PosixSignalRegistration registration in _signalRegistrations)
+                registration.Dispose();
+
+#if OS_WINDOWS
+            // Technically this isn't really needed, but MS docs say we should call it.
+            WinMM.TimeEndPeriod(1);
+#endif
+        }
+
+        /// <summary>
+        /// Shuts down all services and exits the application.
+        /// </summary>
+        public void Shutdown()
+        {
+            // Shutdown can be requested from multiple sources (commands, signals), but it should happen only once.
+            if (Interlocked.Exchange(ref _isShuttingDown, 1) != 0)
+                return;
+
+            ServerManager.Instance.ShutdownServices();
+            _state = State.Shutdown;
+            _shutdownEvent.Set();
+        }
+
+        /// <summary>
+        /// Reads and executes commands from console input until the server shuts down.
+        /// </summary>
+        private void ProcessConsoleInput()
+        {
             while (_state == State.Running)
             {
                 string input = Console.ReadLine();
@@ -146,20 +190,20 @@ namespace MHServerEmu
 
                 CommandManager.Instance.TryParse(input);
             }
-
-#if OS_WINDOWS
-            // Technically this isn't really needed, but MS docs say we should call it.
-            WinMM.TimeEndPeriod(1);
-#endif
         }
 
         /// <summary>
-        /// Shuts down all services and exits the application.
+        /// Handles SIGINT and SIGTERM by shutting down the server.
         /// </summary>
-        public void Shutdown()
+        private void OnShutdownSignal(PosixSignalContext context)
         {
-            ServerManager.Instance.ShutdownServices();
-            _state = State.Shutdown;
+            // If we are already shutting down, let the signal terminate the process as usual (e.g. when Ctrl+C is pressed twice).
+            if (Volatile.Read(ref _isShuttingDown) != 0)
+                return;
+
+            Logger.Info($"Received {context.Signal}, shutting down...");
+            context.Cancel = true;
+            Task.Run(Shutdown);
         }
 
         /// <summary>

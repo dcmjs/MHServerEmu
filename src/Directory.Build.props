@@ -1,0 +1,11 @@
+<Project>
+
+  <!--
+    All projects use the x64 platform, which makes the SDK default PlatformTarget to x64. The arm64 .NET runtime
+    refuses to load x64 assemblies, so build platform-neutral assemblies on Apple Silicon instead.
+  -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">
+    <PlatformTarget Condition="'$(PlatformTarget)' == ''">AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+</Project>

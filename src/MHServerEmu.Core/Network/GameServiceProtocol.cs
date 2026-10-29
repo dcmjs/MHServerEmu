@@ -762,7 +762,7 @@ namespace MHServerEmu.Core.Network
         }
 
         // PlayerManager -> WebFrontend
-        public readonly struct MTXStoreESBalanceResponse(ulong requestId, int statusCode, int currentBalance = 0, float conversionRatio = 0, int conversionStep = 0)
+        public readonly struct MTXStoreESBalanceResponse(ulong requestId, int statusCode, int currentBalance = 0, float conversionRatio = 0, int conversionStep = 0, bool freeGEnabled = false)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;
@@ -770,6 +770,7 @@ namespace MHServerEmu.Core.Network
             public readonly int CurrentBalance = currentBalance;
             public readonly float ConversionRatio = conversionRatio;
             public readonly int ConversionStep = conversionStep;
+            public readonly bool FreeGEnabled = freeGEnabled;
         }
 
         // PlayerManager -> Game
@@ -782,13 +783,14 @@ namespace MHServerEmu.Core.Network
         }
 
         // Game -> PlayerManager
-        public readonly struct MTXStoreESBalanceGameResponse(ulong requestId, int currentBalance, float conversionRatio, int conversionStep)
+        public readonly struct MTXStoreESBalanceGameResponse(ulong requestId, int currentBalance, float conversionRatio, int conversionStep, bool freeGEnabled)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;
             public readonly int CurrentBalance = currentBalance;
             public readonly float ConversionRatio = conversionRatio;
             public readonly int ConversionStep = conversionStep;
+            public readonly bool FreeGEnabled = freeGEnabled;
         }
 
         // WebFrontend -> PlayerManager
@@ -821,6 +823,42 @@ namespace MHServerEmu.Core.Network
 
         // Game -> PlayerManager
         public readonly struct MTXStoreESConvertGameResponse(ulong requestId, bool result)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly bool Result = result;
+        }
+
+        // WebFrontend -> PlayerManager
+        public readonly struct MTXStoreAddFreeGRequest(ulong requestId, string email, string token, int amount)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly string Email = email;
+            public readonly string Token = token;
+            public readonly int Amount = amount;
+        }
+
+        // PlayerManager -> WebFrontend
+        public readonly struct MTXStoreAddFreeGResponse(ulong requestId, int statusCode)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly int StatusCode = statusCode;
+        }
+
+        // PlayerManager -> Game
+        public readonly struct MTXStoreAddFreeGGameRequest(ulong requestId, ulong gameId, ulong playerDbId, int amount)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly ulong GameId = gameId;
+            public readonly ulong PlayerDbId = playerDbId;
+            public readonly int Amount = amount;
+        }
+
+        // Game -> PlayerManager
+        public readonly struct MTXStoreAddFreeGGameResponse(ulong requestId, bool result)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;

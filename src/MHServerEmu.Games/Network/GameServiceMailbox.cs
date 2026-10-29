@@ -18,6 +18,8 @@ namespace MHServerEmu.Games.Network
     /// </summary>
     public sealed class GameServiceMailbox : ServiceMailbox
     {
+        private static readonly Logger Logger = LogManager.CreateLogger();
+
         public Game Game { get; }
 
         public GameServiceMailbox(Game game)
@@ -114,6 +116,10 @@ namespace MHServerEmu.Games.Network
 
                 case ServiceMessage.MTXStoreESConvertGameRequest mtxStoreESConvertGameRequest:
                     OnMTXStoreESConvertGameRequest(mtxStoreESConvertGameRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeGGameRequest mtxStoreAddFreeGGameRequest:
+                    OnMTXStoreAddFreeGGameRequest(mtxStoreAddFreeGGameRequest);
                     break;
 
                 default:
@@ -427,7 +433,7 @@ namespace MHServerEmu.Games.Network
             float conversionRatio = config.ESToGazillioniteConversionRatio;
             int conversionStep = config.ESToGazillioniteConversionStep;
 
-            ServiceMessage.MTXStoreESBalanceGameResponse response = new(mtxStoreESBalanceGameRequest.RequestId, currentBalance, conversionRatio, conversionStep);
+            ServiceMessage.MTXStoreESBalanceGameResponse response = new(mtxStoreESBalanceGameRequest.RequestId, currentBalance, conversionRatio, conversionStep, config.FreeGEnabled);
             ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
         }
 
@@ -439,6 +445,22 @@ namespace MHServerEmu.Games.Network
             int gAmount = player.ConvertEternitySplintersToGazillionite(mtxStoreESConvertGameRequest.Amount);
 
             ServiceMessage.MTXStoreESConvertGameResponse response = new(mtxStoreESConvertGameRequest.RequestId, gAmount > 0);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
+        }
+
+        private void OnMTXStoreAddFreeGGameRequest(in ServiceMessage.MTXStoreAddFreeGGameRequest mtxStoreAddFreeGGameRequest)
+        {
+            Player player = Game.EntityManager.GetEntityByDbGuid<Player>(mtxStoreAddFreeGGameRequest.PlayerDbId);
+            if (!Verify.IsNotNull(player)) return;
+
+            var config = ConfigManager.Instance.GetConfig<MTXStoreConfig>();
+            int amount = mtxStoreAddFreeGGameRequest.Amount;
+
+            bool result = config.FreeGEnabled && amount > 0 && amount <= config.FreeGMaxAmount && player.AcquireGazillionite(amount);
+            if (result)
+                Logger.Info($"[{player.PlayerConnection}] added {amount} free G", LogCategory.MTXStore);
+
+            ServiceMessage.MTXStoreAddFreeGGameResponse response = new(mtxStoreAddFreeGGameRequest.RequestId, result);
             ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
         }
 

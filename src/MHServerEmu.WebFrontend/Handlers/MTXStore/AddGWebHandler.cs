@@ -70,6 +70,7 @@ namespace MHServerEmu.WebFrontend.Handlers.MTXStore
             sb.Replace("%CURRENT_BALANCE%", $"{balanceResponse.CurrentBalance}");
             sb.Replace("%CONVERSION_RATIO%", $"{balanceResponse.ConversionRatio:0.00}");
             sb.Replace("%CONVERSION_STEP%", $"{balanceResponse.ConversionStep}");
+            sb.Replace("%FREE_G_ENABLED%", balanceResponse.FreeGEnabled ? "true" : "false");
             string html = sb.ToString();
 
             await context.SendAsync(html, "text/html");

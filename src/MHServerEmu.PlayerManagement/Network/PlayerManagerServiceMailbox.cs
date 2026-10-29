@@ -136,6 +136,14 @@ namespace MHServerEmu.PlayerManagement.Network
                     OnMTXStoreESConvertGameResponse(mtxStoreESConvertGameResponse);
                     break;
 
+                case ServiceMessage.MTXStoreAddFreeGRequest mtxStoreAddFreeGRequest:
+                    OnMTXStoreAddFreeGRequest(mtxStoreAddFreeGRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeGGameResponse mtxStoreAddFreeGGameResponse:
+                    OnMTXStoreAddFreeGGameResponse(mtxStoreAddFreeGGameResponse);
+                    break;
+
                 case ServiceMessage.AccountOperationRequest accountOperationRequest:
                     OnAccountOperationRequest(accountOperationRequest);
                     break;
@@ -482,9 +490,10 @@ namespace MHServerEmu.PlayerManagement.Network
             int currentBalance = mtxStoreESBalanceGameResponse.CurrentBalance;
             float conversionRate = mtxStoreESBalanceGameResponse.ConversionRatio;
             int conversionStep = mtxStoreESBalanceGameResponse.ConversionStep;
+            bool freeGEnabled = mtxStoreESBalanceGameResponse.FreeGEnabled;
 
             // We should have already handled authentication before routing the request to the game instance, so just route the result back.
-            ServiceMessage.MTXStoreESBalanceResponse response = new(requestId, (int)HttpStatusCode.OK, currentBalance, conversionRate, conversionStep);
+            ServiceMessage.MTXStoreESBalanceResponse response = new(requestId, (int)HttpStatusCode.OK, currentBalance, conversionRate, conversionStep, freeGEnabled);
             ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
         }
 
@@ -524,6 +533,44 @@ namespace MHServerEmu.PlayerManagement.Network
 
             // We should have already handled authentication before routing the request to the game instance, so just route the result back.
             ServiceMessage.MTXStoreESConvertResponse response = new(requestId, result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError);
+            ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+        }
+
+        private void OnMTXStoreAddFreeGRequest(in ServiceMessage.MTXStoreAddFreeGRequest mtxStoreAddFreeGRequest)
+        {
+            ulong requestId = mtxStoreAddFreeGRequest.RequestId;
+            string email = mtxStoreAddFreeGRequest.Email;
+            string token = mtxStoreAddFreeGRequest.Token;
+            int amount = mtxStoreAddFreeGRequest.Amount;
+
+            PlayerHandle player = null;
+
+            VerifyPlatformTicketResult vptResult = _playerManager.SessionManager.VerifyPlatformTicket(email, token, out ulong playerDbId);
+            if (Verify.IsTrue(vptResult == VerifyPlatformTicketResult.Success, $"Failed to verify platform ticket when processing free G request! result={vptResult}"))
+                player = _playerManager.ClientManager.GetPlayer(playerDbId);
+
+            if (player == null || player.State != PlayerHandleState.InGame)
+            {
+                ServiceMessage.MTXStoreAddFreeGResponse response = new(requestId, (int)HttpStatusCode.Forbidden);
+                ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+                return;
+            }
+
+            Logger.Trace($"Authenticated free G request from player [{player}]");
+
+            ulong gameId = player.CurrentGame.Id;
+
+            // The game instance checks whether free G is enabled, since that's where MTXStoreConfig lives.
+            ServiceMessage.MTXStoreAddFreeGGameRequest gameRequest = new(requestId, gameId, playerDbId, amount);
+            ServerManager.Instance.SendMessageToService(GameServiceType.GameInstance, gameRequest);
+        }
+
+        private void OnMTXStoreAddFreeGGameResponse(in ServiceMessage.MTXStoreAddFreeGGameResponse mtxStoreAddFreeGGameResponse)
+        {
+            ulong requestId = mtxStoreAddFreeGGameResponse.RequestId;
+            bool result = mtxStoreAddFreeGGameResponse.Result;
+
+            ServiceMessage.MTXStoreAddFreeGResponse response = new(requestId, result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.Forbidden);
             ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
         }
 

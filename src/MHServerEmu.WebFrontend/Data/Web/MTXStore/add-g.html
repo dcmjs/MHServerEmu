@@ -202,11 +202,46 @@
 			vertical-align: middle;
 			width: 48px;
 		}
+		div.free-g-buttons {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			margin: 16px 0px 8px 0px;
+		}
+		div.free-g-buttons button {
+			margin: 6px 8px;
+			padding: 8px 20px 6px 20px;
+		}
+		div.free-g-buttons .g {
+			width: 22px;
+			height: 22px;
+			font-size: 15px;
+			text-shadow: 1px 1px 1px #00B2FE;
+			vertical-align: -2px;
+		}
+		hr {
+			border: none;
+			border-top: 1px solid #00717c;
+			margin: 20px 0px;
+		}
 	</style>
 </head>
 <body>
 	<div class="content">
 		<h1>Add G</h1>
+		<div id="free-g" style="display: none;">
+			<p>Choose an amount of G to add to your balance.</p>
+			<div class="free-g-buttons">
+				<button onclick="addFreeG(100)">Add 100<span class="g">G</span></button>
+				<button onclick="addFreeG(1000)">Add 1,000<span class="g">G</span></button>
+				<button onclick="addFreeG(5000)">Add 5,000<span class="g">G</span></button>
+				<button onclick="addFreeG(10000)">Add 10,000<span class="g">G</span></button>
+			</div>
+			<hr />
+			<h2>Convert Eternity Splinters</h2>
+			<p id="no-es-note" style="display: none;">You don't have any Eternity Splinters to convert yet. You earn them by playing.</p>
+		</div>
+		<div id="es-convert">
 		<p>Select the amount of Eternity Splinters to convert to G.</p>
 		<table>
 			<tr>
@@ -225,6 +260,7 @@
 		<p>Please note that the amount of G after conversion may be subject to rounding errors.</p>
 		<div class="center">
 			<button onclick="convert()">Convert</button>
+		</div>
 		</div>
 	</div>
 
@@ -250,13 +286,14 @@
 				</div>
 			</div>
 			<div id="popup-pending">
-				<p>Converting...</p>
+				<p id="popup-pending-text">Converting...</p>
 			</div>
 			<div id="popup-result">
 				<p id="popup-result-text"></p>
-				<div class="center">
+				<div class="button-container">
+					<button id="popup-result-more" onclick="closePopup()" style="display: none;">Add More</button>
 					<button class="close-button" onclick="closePanel()">Close</button>
-				</div>					
+				</div>
 			</div>
 		</div>
 	</div>
@@ -269,6 +306,7 @@
 			currentBalance: Math.max(Number("%CURRENT_BALANCE%"), 0),
 			conversionRatio: Math.max(Number("%CONVERSION_RATIO%"), 0),
 			conversionStep: Math.max(Number("%CONVERSION_STEP%"), 1),
+			freeGEnabled: "%FREE_G_ENABLED%" == "true",
 		});
 
 		var PopupType = Object.freeze({
@@ -280,7 +318,8 @@
 			RESULT: "popup-result",
 		});
 
-		var convertResult = 200;
+		// Whether any request in this panel succeeded; tells the client to refresh the balance on close.
+		var anySucceeded = false;
 
 		function showPopup(type) {
 			var types = Object.keys(PopupType);
@@ -346,34 +385,44 @@
 		}
 
 		function convertConfirm() {
+			sendRequest("/Submit", getES(), "Converting...", "Successfully converted.", "Conversion error", false);
+		}
+
+		function addFreeG(gAmount) {
+			sendRequest("/Free", gAmount, "Adding G...", "Added " + gAmount.toLocaleString("en-US") + " G.", "Could not add G", true);
+		}
+
+		function sendRequest(path, amount, pendingText, successText, errorText, offerMore) {
+			document.getElementById("popup-pending-text").innerText = pendingText;
 			showPopup(PopupType.PENDING);
 
-			var convertRequest = {
+			var request = {
 				Email: requestContext.email,
 				Token: requestContext.token,
-				Amount: getES(),
+				Amount: amount,
 			};
 
 			var xhr = new XMLHttpRequest();
-			xhr.open("POST", window.location.href + "/Submit", true);
-			xhr.onreadystatechange = function() { handleReadyStateChange(xhr); };
+			xhr.open("POST", window.location.href + path, true);
+			xhr.onreadystatechange = function() { handleReadyStateChange(xhr, successText, errorText, offerMore); };
 			xhr.setRequestHeader("Content-Type", "application/json");
-			xhr.send(JSON.stringify(convertRequest));
+			xhr.send(JSON.stringify(request));
 		}
 
-		function handleReadyStateChange(xhr) {
+		function handleReadyStateChange(xhr, successText, errorText, offerMore) {
 			if (xhr.readyState != 4)
 				return;
 
-			convertResult = xhr.status;
+			var succeeded = xhr.status == 200;
+			anySucceeded = anySucceeded || succeeded;
 
-			var confirmText = convertResult == 200 ? "Successfully converted." : "Conversion error (" + convertResult + ").";
-			document.getElementById("popup-result-text").innerText = confirmText;
+			document.getElementById("popup-result-text").innerText = succeeded ? successText : errorText + " (" + xhr.status + ").";
+			document.getElementById("popup-result-more").style.display = succeeded && offerMore ? "block" : "none";
 			showPopup(PopupType.RESULT);
 		}
 
 		function closePanel() {
-			myApi.CloseAddGPanel(convertResult == 200);
+			myApi.CloseAddGPanel(anySucceeded);
 		}
 
 		function initialize() {
@@ -384,8 +433,16 @@
 			esRange.step = step;
 			esRange.max = max;
 
-			if (max == 0)
+			if (requestContext.freeGEnabled) {
+				// Free G doesn't need splinters, so don't block the panel when there are none.
+				document.getElementById("free-g").style.display = "block";
+				if (max == 0) {
+					document.getElementById("no-es-note").style.display = "block";
+					document.getElementById("es-convert").style.display = "none";
+				}
+			} else if (max == 0) {
 				showPopup(PopupType.LOW_BALANCE);
+			}
 		}
 
 		initialize();

@@ -49,6 +49,7 @@ namespace MHServerEmu.WebFrontend
             // MTXStore handlers are used for the Add G panel in the client UI.
             _webService.RegisterHandler("/MTXStore/AddG", new AddGWebHandler());
             _webService.RegisterHandler("/MTXStore/AddG/Submit", new AddGSubmitWebHandler());
+            _webService.RegisterHandler("/MTXStore/AddG/Free", new AddGFreeWebHandler());
 
             if (config.EnableWebApi)
             {

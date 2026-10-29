@@ -18,6 +18,7 @@ namespace MHServerEmu.WebFrontend.Network
         private readonly TaskManager<ServiceMessage.AuthResponse> _authTaskManager = new();
         private readonly TaskManager<ServiceMessage.MTXStoreESBalanceResponse> _esBalanceTaskManager = new();
         private readonly TaskManager<ServiceMessage.MTXStoreESConvertResponse> _esConvertTaskManager = new();
+        private readonly TaskManager<ServiceMessage.MTXStoreAddFreeGResponse> _addFreeGTaskManager = new();
         private readonly TaskManager<ServiceMessage.AccountOperationResponse> _accountOperationTaskManager = new();
 
         public static GameServiceTaskManager Instance { get; } = new();
@@ -100,6 +101,32 @@ namespace MHServerEmu.WebFrontend.Network
         public void OnMTXStoreESConvertResponse(in ServiceMessage.MTXStoreESConvertResponse response)
         {
             _esConvertTaskManager.CompleteTask(response.RequestId, response);
+        }
+
+        /// <summary>
+        /// Asynchronously requests free G for a given account (only granted when MTXStore FreeGEnabled is on).
+        /// </summary>
+        public async Task<ServiceMessage.MTXStoreAddFreeGResponse> AddFreeGAsync(string email, string token, int amount)
+        {
+            var addFreeGTask = _addFreeGTaskManager.CreateTask();
+
+            ServiceMessage.MTXStoreAddFreeGRequest request = new(addFreeGTask.Id, email, token, amount);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, request);
+
+            ServiceMessage.MTXStoreAddFreeGResponse? response = await CompleteTaskWithTimeout(addFreeGTask);
+
+            if (response == null)
+                return new(addFreeGTask.Id, (int)HttpStatusCode.RequestTimeout);
+
+            return response.Value;
+        }
+
+        /// <summary>
+        /// Completes a previously started free G request.
+        /// </summary>
+        public void OnMTXStoreAddFreeGResponse(in ServiceMessage.MTXStoreAddFreeGResponse response)
+        {
+            _addFreeGTaskManager.CompleteTask(response.RequestId, response);
         }
 
         /// <summary>

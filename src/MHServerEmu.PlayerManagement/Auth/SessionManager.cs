@@ -213,6 +213,9 @@ namespace MHServerEmu.PlayerManagement.Auth
         {
             playerDbId = 0;
 
+            if (string.IsNullOrEmpty(ticket))
+                return VerifyPlatformTicketResult.InvalidTicket;
+
             if (_platformTicketManager.TryGetValue(ticket, out ulong sessionId) == false)
                 return VerifyPlatformTicketResult.InvalidTicket;
 

@@ -19,7 +19,7 @@ namespace MHServerEmu.Core.Network.Web
     /// </summary>
     public class WebApiKeyManager
     {
-        private static readonly string KeyFilePath = Path.Combine(FileHelper.DataDirectory, "Web", "ApiKeys.json");
+        private static readonly string KeyFilePath = Path.Combine(FileHelper.UserDataDirectory, "Web", "ApiKeys.json");
         private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
         private static readonly Logger Logger = LogManager.CreateLogger();

@@ -201,7 +201,7 @@ namespace MHServerEmu.Games.Network.InstanceManagement
 
             DateTime now = DateTime.Now;
 
-            string crashReportDir = Path.Combine(FileHelper.ServerRoot, "CrashReports");
+            string crashReportDir = Path.Combine(FileHelper.UserDirectory, "CrashReports");
             if (Directory.Exists(crashReportDir) == false)
                 Directory.CreateDirectory(crashReportDir);
 

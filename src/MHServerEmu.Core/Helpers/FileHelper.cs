@@ -16,6 +16,25 @@ namespace MHServerEmu.Core.Helpers
         public static readonly string ServerRoot = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
         public static readonly string DataDirectory = Path.Combine(ServerRoot, "Data");
 
+        // Files written by the server go to the server directory by default. The --data-dir command line argument moves
+        // them to a separate directory, which allows the server to run from a read-only location.
+        private static readonly string CustomUserDirectory = GetCommandLinePath("--data-dir", true);
+
+        /// <summary>
+        /// Directory for non-data files written by the server (config overrides, logs, crash reports).
+        /// </summary>
+        public static readonly string UserDirectory = CustomUserDirectory ?? ServerRoot;
+
+        /// <summary>
+        /// Directory for data files written by the server (account and leaderboard databases, web API keys).
+        /// </summary>
+        public static readonly string UserDataDirectory = CustomUserDirectory ?? DataDirectory;
+
+        /// <summary>
+        /// Path to the config override file. Can be specified with the --config-override command line argument.
+        /// </summary>
+        public static readonly string ConfigOverridePath = GetCommandLinePath("--config-override", false) ?? Path.Combine(UserDirectory, "ConfigOverride.ini");
+
         /// <summary>
         /// Returns a path relative to server root directory.
         /// </summary>
@@ -85,7 +104,30 @@ namespace MHServerEmu.Core.Helpers
         /// </summary>
         public static void SaveTextFileToRoot(string fileName, string text)
         {
-            File.WriteAllText(Path.Combine(ServerRoot, fileName), text);
+            File.WriteAllText(Path.Combine(UserDirectory, fileName), text);
+        }
+
+        /// <summary>
+        /// Returns the full path specified after the provided command line argument, or <see langword="null"/> if the argument is not present.
+        /// Creates the directory if needed when <paramref name="isDirectory"/> is <see langword="true"/>.
+        /// </summary>
+        private static string GetCommandLinePath(string argName, bool isDirectory)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+
+            int index = Array.IndexOf(args, argName);
+            if (index < 0)
+                return null;
+
+            if (index + 1 >= args.Length || string.IsNullOrWhiteSpace(args[index + 1]))
+                throw new ArgumentException($"No path specified for command line argument {argName}.");
+
+            string path = Path.GetFullPath(args[index + 1]);
+
+            if (isDirectory)
+                Directory.CreateDirectory(path);
+
+            return path;
         }
 
         /// <summary>

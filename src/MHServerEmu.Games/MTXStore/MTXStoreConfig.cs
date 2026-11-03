@@ -9,6 +9,8 @@ namespace MHServerEmu.Games.MTXStore
         public int ESToGazillioniteConversionStep { get; private set; } = 4;
         public bool FreeGEnabled { get; private set; } = false;
         public int FreeGMaxAmount { get; private set; } = 10000;
+        public bool FreeCurrencyEnabled { get; private set; } = false;
+        public int FreeCurrencyMaxAmount { get; private set; } = 1000000;
         public long GiftingOmegaLevelRequired { get; private set; } = 0;
         public long GiftingInfinityLevelRequired { get; private set; } = 0;
 

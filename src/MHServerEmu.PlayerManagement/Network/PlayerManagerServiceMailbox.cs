@@ -144,6 +144,14 @@ namespace MHServerEmu.PlayerManagement.Network
                     OnMTXStoreAddFreeGGameResponse(mtxStoreAddFreeGGameResponse);
                     break;
 
+                case ServiceMessage.MTXStoreAddFreeCurrencyRequest mtxStoreAddFreeCurrencyRequest:
+                    OnMTXStoreAddFreeCurrencyRequest(mtxStoreAddFreeCurrencyRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeCurrencyGameResponse mtxStoreAddFreeCurrencyGameResponse:
+                    OnMTXStoreAddFreeCurrencyGameResponse(mtxStoreAddFreeCurrencyGameResponse);
+                    break;
+
                 case ServiceMessage.AccountOperationRequest accountOperationRequest:
                     OnAccountOperationRequest(accountOperationRequest);
                     break;
@@ -491,9 +499,10 @@ namespace MHServerEmu.PlayerManagement.Network
             float conversionRate = mtxStoreESBalanceGameResponse.ConversionRatio;
             int conversionStep = mtxStoreESBalanceGameResponse.ConversionStep;
             bool freeGEnabled = mtxStoreESBalanceGameResponse.FreeGEnabled;
+            ServiceMessage.MTXStoreCurrencyBalance[] freeCurrencies = mtxStoreESBalanceGameResponse.FreeCurrencies;
 
             // We should have already handled authentication before routing the request to the game instance, so just route the result back.
-            ServiceMessage.MTXStoreESBalanceResponse response = new(requestId, (int)HttpStatusCode.OK, currentBalance, conversionRate, conversionStep, freeGEnabled);
+            ServiceMessage.MTXStoreESBalanceResponse response = new(requestId, (int)HttpStatusCode.OK, currentBalance, conversionRate, conversionStep, freeGEnabled, freeCurrencies);
             ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
         }
 
@@ -571,6 +580,46 @@ namespace MHServerEmu.PlayerManagement.Network
             bool result = mtxStoreAddFreeGGameResponse.Result;
 
             ServiceMessage.MTXStoreAddFreeGResponse response = new(requestId, result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.Forbidden);
+            ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+        }
+
+        private void OnMTXStoreAddFreeCurrencyRequest(in ServiceMessage.MTXStoreAddFreeCurrencyRequest mtxStoreAddFreeCurrencyRequest)
+        {
+            ulong requestId = mtxStoreAddFreeCurrencyRequest.RequestId;
+            string email = mtxStoreAddFreeCurrencyRequest.Email;
+            string token = mtxStoreAddFreeCurrencyRequest.Token;
+            ulong currencyProtoRef = mtxStoreAddFreeCurrencyRequest.CurrencyProtoRef;
+            int amount = mtxStoreAddFreeCurrencyRequest.Amount;
+
+            PlayerHandle player = null;
+
+            VerifyPlatformTicketResult vptResult = _playerManager.SessionManager.VerifyPlatformTicket(email, token, out ulong playerDbId);
+            if (Verify.IsTrue(vptResult == VerifyPlatformTicketResult.Success, $"Failed to verify platform ticket when processing free currency request! result={vptResult}"))
+                player = _playerManager.ClientManager.GetPlayer(playerDbId);
+
+            if (player == null || player.State != PlayerHandleState.InGame)
+            {
+                ServiceMessage.MTXStoreAddFreeCurrencyResponse response = new(requestId, (int)HttpStatusCode.Forbidden);
+                ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+                return;
+            }
+
+            Logger.Trace($"Authenticated free currency request from player [{player}]");
+
+            ulong gameId = player.CurrentGame.Id;
+
+            // The game instance checks whether free currency is enabled and the currency is valid, since that's where the config and game data live.
+            ServiceMessage.MTXStoreAddFreeCurrencyGameRequest gameRequest = new(requestId, gameId, playerDbId, currencyProtoRef, amount);
+            ServerManager.Instance.SendMessageToService(GameServiceType.GameInstance, gameRequest);
+        }
+
+        private void OnMTXStoreAddFreeCurrencyGameResponse(in ServiceMessage.MTXStoreAddFreeCurrencyGameResponse mtxStoreAddFreeCurrencyGameResponse)
+        {
+            ulong requestId = mtxStoreAddFreeCurrencyGameResponse.RequestId;
+            bool result = mtxStoreAddFreeCurrencyGameResponse.Result;
+            int balance = mtxStoreAddFreeCurrencyGameResponse.Balance;
+
+            ServiceMessage.MTXStoreAddFreeCurrencyResponse response = new(requestId, result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.Forbidden, balance);
             ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
         }
 

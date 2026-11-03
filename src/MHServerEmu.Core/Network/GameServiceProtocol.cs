@@ -762,7 +762,8 @@ namespace MHServerEmu.Core.Network
         }
 
         // PlayerManager -> WebFrontend
-        public readonly struct MTXStoreESBalanceResponse(ulong requestId, int statusCode, int currentBalance = 0, float conversionRatio = 0, int conversionStep = 0, bool freeGEnabled = false)
+        public readonly struct MTXStoreESBalanceResponse(ulong requestId, int statusCode, int currentBalance = 0, float conversionRatio = 0, int conversionStep = 0, bool freeGEnabled = false,
+            MTXStoreCurrencyBalance[] freeCurrencies = null)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;
@@ -771,6 +772,17 @@ namespace MHServerEmu.Core.Network
             public readonly float ConversionRatio = conversionRatio;
             public readonly int ConversionStep = conversionStep;
             public readonly bool FreeGEnabled = freeGEnabled;
+            public readonly MTXStoreCurrencyBalance[] FreeCurrencies = freeCurrencies;
+        }
+
+        /// <summary>
+        /// A currency the add G panel can grant for free, with the player's current balance. Empty unless MTXStore FreeCurrencyEnabled is on.
+        /// </summary>
+        public readonly struct MTXStoreCurrencyBalance(ulong currencyProtoRef, string name, int balance)
+        {
+            public readonly ulong CurrencyProtoRef = currencyProtoRef;
+            public readonly string Name = name;
+            public readonly int Balance = balance;
         }
 
         // PlayerManager -> Game
@@ -783,7 +795,8 @@ namespace MHServerEmu.Core.Network
         }
 
         // Game -> PlayerManager
-        public readonly struct MTXStoreESBalanceGameResponse(ulong requestId, int currentBalance, float conversionRatio, int conversionStep, bool freeGEnabled)
+        public readonly struct MTXStoreESBalanceGameResponse(ulong requestId, int currentBalance, float conversionRatio, int conversionStep, bool freeGEnabled,
+            MTXStoreCurrencyBalance[] freeCurrencies)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;
@@ -791,6 +804,7 @@ namespace MHServerEmu.Core.Network
             public readonly float ConversionRatio = conversionRatio;
             public readonly int ConversionStep = conversionStep;
             public readonly bool FreeGEnabled = freeGEnabled;
+            public readonly MTXStoreCurrencyBalance[] FreeCurrencies = freeCurrencies;
         }
 
         // WebFrontend -> PlayerManager
@@ -863,6 +877,46 @@ namespace MHServerEmu.Core.Network
         {
             public readonly ulong RequestId = requestId;
             public readonly bool Result = result;
+        }
+
+        // WebFrontend -> PlayerManager
+        public readonly struct MTXStoreAddFreeCurrencyRequest(ulong requestId, string email, string token, ulong currencyProtoRef, int amount)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly string Email = email;
+            public readonly string Token = token;
+            public readonly ulong CurrencyProtoRef = currencyProtoRef;
+            public readonly int Amount = amount;
+        }
+
+        // PlayerManager -> WebFrontend
+        public readonly struct MTXStoreAddFreeCurrencyResponse(ulong requestId, int statusCode, int balance = 0)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly int StatusCode = statusCode;
+            public readonly int Balance = balance;
+        }
+
+        // PlayerManager -> Game
+        public readonly struct MTXStoreAddFreeCurrencyGameRequest(ulong requestId, ulong gameId, ulong playerDbId, ulong currencyProtoRef, int amount)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly ulong GameId = gameId;
+            public readonly ulong PlayerDbId = playerDbId;
+            public readonly ulong CurrencyProtoRef = currencyProtoRef;
+            public readonly int Amount = amount;
+        }
+
+        // Game -> PlayerManager
+        public readonly struct MTXStoreAddFreeCurrencyGameResponse(ulong requestId, bool result, int balance)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly bool Result = result;
+            public readonly int Balance = balance;
         }
 
         #endregion

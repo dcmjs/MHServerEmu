@@ -19,6 +19,7 @@ namespace MHServerEmu.WebFrontend.Network
         private readonly TaskManager<ServiceMessage.MTXStoreESBalanceResponse> _esBalanceTaskManager = new();
         private readonly TaskManager<ServiceMessage.MTXStoreESConvertResponse> _esConvertTaskManager = new();
         private readonly TaskManager<ServiceMessage.MTXStoreAddFreeGResponse> _addFreeGTaskManager = new();
+        private readonly TaskManager<ServiceMessage.MTXStoreAddFreeCurrencyResponse> _addFreeCurrencyTaskManager = new();
         private readonly TaskManager<ServiceMessage.AccountOperationResponse> _accountOperationTaskManager = new();
 
         public static GameServiceTaskManager Instance { get; } = new();
@@ -127,6 +128,32 @@ namespace MHServerEmu.WebFrontend.Network
         public void OnMTXStoreAddFreeGResponse(in ServiceMessage.MTXStoreAddFreeGResponse response)
         {
             _addFreeGTaskManager.CompleteTask(response.RequestId, response);
+        }
+
+        /// <summary>
+        /// Asynchronously requests a free amount of a currency for a given account (only granted when MTXStore FreeCurrencyEnabled is on).
+        /// </summary>
+        public async Task<ServiceMessage.MTXStoreAddFreeCurrencyResponse> AddFreeCurrencyAsync(string email, string token, ulong currencyProtoRef, int amount)
+        {
+            var addFreeCurrencyTask = _addFreeCurrencyTaskManager.CreateTask();
+
+            ServiceMessage.MTXStoreAddFreeCurrencyRequest request = new(addFreeCurrencyTask.Id, email, token, currencyProtoRef, amount);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, request);
+
+            ServiceMessage.MTXStoreAddFreeCurrencyResponse? response = await CompleteTaskWithTimeout(addFreeCurrencyTask);
+
+            if (response == null)
+                return new(addFreeCurrencyTask.Id, (int)HttpStatusCode.RequestTimeout);
+
+            return response.Value;
+        }
+
+        /// <summary>
+        /// Completes a previously started free currency request.
+        /// </summary>
+        public void OnMTXStoreAddFreeCurrencyResponse(in ServiceMessage.MTXStoreAddFreeCurrencyResponse response)
+        {
+            _addFreeCurrencyTaskManager.CompleteTask(response.RequestId, response);
         }
 
         /// <summary>

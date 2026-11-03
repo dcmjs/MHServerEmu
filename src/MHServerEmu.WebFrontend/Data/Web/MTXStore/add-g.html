@@ -224,6 +224,33 @@
 			border-top: 1px solid #00717c;
 			margin: 20px 0px;
 		}
+		div.currency-picker {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			flex-wrap: wrap;
+		}
+		div.currency-picker > * {
+			margin: 4px 8px;
+		}
+		select {
+			box-sizing: border-box;
+			min-width: 280px;
+			height: 34px;
+			padding: 0px 8px;
+			border: 1px solid #505350;
+			border-radius: 4px;
+			background: linear-gradient(#010501 0%, #120F0E 10%, #252525 100%);
+			color: white;
+			font: 20px / 1 "Bebas Neue", "Trebuchet MS", Verdana, sans-serif;
+		}
+		select option {
+			background: #1c1c1c;
+		}
+		#currency-balance {
+			color: #00aaff;
+			font: 22px / 1 "Bebas Neue", "Trebuchet MS", Verdana, sans-serif;
+		}
 	</style>
 </head>
 <body>
@@ -261,6 +288,22 @@
 		<div class="center">
 			<button onclick="convert()">Convert</button>
 		</div>
+		</div>
+		<div id="free-currency" style="display: none;">
+			<hr />
+			<h2>Add Currency</h2>
+			<p>Choose a currency, then an amount to add.</p>
+			<div class="currency-picker">
+				<select id="currency-select" onchange="showCurrencyBalance()"></select>
+				<span id="currency-balance"></span>
+			</div>
+			<div class="free-g-buttons">
+				<button onclick="addFreeCurrency(100)">Add 100</button>
+				<button onclick="addFreeCurrency(1000)">Add 1,000</button>
+				<button onclick="addFreeCurrency(10000)">Add 10,000</button>
+				<button onclick="addFreeCurrency(100000)">Add 100,000</button>
+				<button onclick="addFreeCurrency(1000000)">Add 1,000,000</button>
+			</div>
 		</div>
 	</div>
 
@@ -308,6 +351,9 @@
 			conversionStep: Math.max(Number("%CONVERSION_STEP%"), 1),
 			freeGEnabled: "%FREE_G_ENABLED%" == "true",
 		});
+
+		// [{ Id, Name, Balance }], empty unless free currency is enabled. Balances are updated as currency is added.
+		var freeCurrencies = %FREE_CURRENCIES%;
 
 		var PopupType = Object.freeze({
 			NONE: "",
@@ -392,7 +438,31 @@
 			sendRequest("/Free", gAmount, "Adding G...", "Added " + gAmount.toLocaleString("en-US") + " G.", "Could not add G", true);
 		}
 
-		function sendRequest(path, amount, pendingText, successText, errorText, offerMore) {
+		function getSelectedCurrency() {
+			return freeCurrencies[document.getElementById("currency-select").selectedIndex];
+		}
+
+		function showCurrencyBalance() {
+			var currency = getSelectedCurrency();
+			document.getElementById("currency-balance").innerText = "You have " + currency.Balance.toLocaleString("en-US");
+		}
+
+		function addFreeCurrency(amount) {
+			var currency = getSelectedCurrency();
+
+			// The server may add less than requested if the currency has a cap, so report what the balance actually changed by.
+			var successText = function(xhr) {
+				var balance = JSON.parse(xhr.responseText).Balance;
+				var added = balance - currency.Balance;
+				currency.Balance = balance;
+				showCurrencyBalance();
+				return "Added " + added.toLocaleString("en-US") + " " + currency.Name + ". You now have " + balance.toLocaleString("en-US") + ".";
+			};
+
+			sendRequest("/Currency", amount, "Adding " + currency.Name + "...", successText, "Could not add " + currency.Name, true, { Currency: currency.Id });
+		}
+
+		function sendRequest(path, amount, pendingText, successText, errorText, offerMore, extraFields) {
 			document.getElementById("popup-pending-text").innerText = pendingText;
 			showPopup(PopupType.PENDING);
 
@@ -401,6 +471,9 @@
 				Token: requestContext.token,
 				Amount: amount,
 			};
+
+			for (var field in extraFields)
+				request[field] = extraFields[field];
 
 			var xhr = new XMLHttpRequest();
 			xhr.open("POST", window.location.href + path, true);
@@ -415,6 +488,9 @@
 
 			var succeeded = xhr.status == 200;
 			anySucceeded = anySucceeded || succeeded;
+
+			if (succeeded && typeof successText == "function")
+				successText = successText(xhr);
 
 			document.getElementById("popup-result-text").innerText = succeeded ? successText : errorText + " (" + xhr.status + ").";
 			document.getElementById("popup-result-more").style.display = succeeded && offerMore ? "block" : "none";
@@ -440,8 +516,17 @@
 					document.getElementById("no-es-note").style.display = "block";
 					document.getElementById("es-convert").style.display = "none";
 				}
-			} else if (max == 0) {
+			} else if (max == 0 && freeCurrencies.length == 0) {
 				showPopup(PopupType.LOW_BALANCE);
+			}
+
+			if (freeCurrencies.length > 0) {
+				var select = document.getElementById("currency-select");
+				for (var i = 0; i < freeCurrencies.length; i++)
+					select.add(new Option(freeCurrencies[i].Name));
+
+				showCurrencyBalance();
+				document.getElementById("free-currency").style.display = "block";
 			}
 		}
 

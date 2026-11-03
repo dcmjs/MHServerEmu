@@ -508,6 +508,33 @@ namespace MHServerEmu.Games.Network
         }
 
         /// <summary>
+        /// In-game English names of currencies, keyed by prototype name. Locale files aren't loaded by default, and many prototype
+        /// names don't match what players saw (GrootCurrency is Planet X Bark). Taken from the 1.52 eng.all strings, except that
+        /// MarvelousDustCurrency is mislabeled "Seals of Conflict" there (its tooltip calls it Marvelous Dust).
+        /// </summary>
+        private static readonly Dictionary<string, string> CurrencyDisplayNames = new()
+        {
+            { "BountyCurrency",             "A.R.M.O.R. Research Drives" },
+            { "CivilWarCurrency",           "Seals of Conflict" },
+            { "CosmicWorldstoneCurrency",   "Cosmic Worldstones" },
+            { "CreditsCurrency",            "Credits" },
+            { "CubeShardCurrency",          "Cube Shards" },
+            { "DangerRoomCurrency",         "Danger Room Merits" },
+            { "EternitySplinterCurrency",   "Eternity Splinters" },
+            { "GenoshaRaidCurrency",        "Champion's Commendations" },
+            { "GrootCurrency",              "Planet X Bark" },
+            { "HeroCommendation",           "Hero's Commendations" },
+            { "LegendaryMarksCurrency",     "Odin Marks" },
+            { "MarvelousDustCurrency",      "Marvelous Dust" },
+            { "OmegaFile",                  "S.H.I.E.L.D. Omega Access Files" },
+            { "PatrolMarksCurrency",        "Patrol Marks" },
+            { "ProtectorsCommendation",     "Protector's Commendations" },
+            { "PvPGoldenCrownCurrency",     "Crowns of Valor" },
+            { "RunestoneCurrency",          "Runestones" },
+            { "TestCurrency",               "Blamey Bucks" },
+        };
+
+        /// <summary>
         /// Returns the currencies the add G panel can grant, credits first. G has its own buttons, so it's not included.
         /// </summary>
         private static List<PrototypeId> GetFreeCurrencies()
@@ -527,13 +554,16 @@ namespace MHServerEmu.Games.Network
 
         private static string GetCurrencyDisplayName(PrototypeId currencyProtoRef)
         {
-            CurrencyPrototype currencyProto = currencyProtoRef.As<CurrencyPrototype>();
-            string name = LocaleManager.Instance.CurrentLocale?.GetLocaleString(currencyProto.DisplayName);
-            if (string.IsNullOrEmpty(name) == false)
-                return name;
+            string name = GameDatabase.GetFormattedPrototypeName(currencyProtoRef);
+            if (CurrencyDisplayNames.TryGetValue(name, out string displayName))
+                return displayName;
 
-            // Locale files aren't loaded by default, so fall back to the prototype name ("PvPGoldenCrownCurrency" -> "PvP Golden Crown").
-            name = GameDatabase.GetFormattedPrototypeName(currencyProtoRef);
+            CurrencyPrototype currencyProto = currencyProtoRef.As<CurrencyPrototype>();
+            displayName = LocaleManager.Instance.CurrentLocale?.GetLocaleString(currencyProto.DisplayName);
+            if (string.IsNullOrEmpty(displayName) == false)
+                return displayName;
+
+            // Neither known nor localized, so fall back to the prototype name ("PvPGoldenCrownCurrency" -> "PvP Golden Crown").
             if (name.Length > "Currency".Length && name.EndsWith("Currency"))
                 name = name[..^"Currency".Length];
 

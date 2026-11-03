@@ -1,6 +1,7 @@
 ﻿using System.Collections.Specialized;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using MHServerEmu.Core.Helpers;
 using MHServerEmu.Core.Logging;
 using MHServerEmu.Core.Network;
@@ -71,9 +72,18 @@ namespace MHServerEmu.WebFrontend.Handlers.MTXStore
             sb.Replace("%CONVERSION_RATIO%", $"{balanceResponse.ConversionRatio:0.00}");
             sb.Replace("%CONVERSION_STEP%", $"{balanceResponse.ConversionStep}");
             sb.Replace("%FREE_G_ENABLED%", balanceResponse.FreeGEnabled ? "true" : "false");
+            sb.Replace("%FREE_CURRENCIES%", SerializeFreeCurrencies(balanceResponse.FreeCurrencies));
             string html = sb.ToString();
 
             await context.SendAsync(html, "text/html");
+        }
+
+        private static string SerializeFreeCurrencies(ServiceMessage.MTXStoreCurrencyBalance[] freeCurrencies)
+        {
+            // Ids are sent as strings because 64-bit prototype ids lose precision as JavaScript numbers.
+            // The default encoder escapes '<' and '>', so the result is safe to embed in a script block.
+            var currencies = (freeCurrencies ?? []).Select(currency => new { Id = $"{currency.CurrencyProtoRef}", currency.Name, currency.Balance });
+            return JsonSerializer.Serialize(currencies);
         }
     }
 }

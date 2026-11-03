@@ -1,10 +1,12 @@
-﻿using Gazillion;
+﻿using System.Text.RegularExpressions;
+using Gazillion;
 using MHServerEmu.Core.Config;
 using MHServerEmu.Core.Logging;
 using MHServerEmu.Core.Network;
 using MHServerEmu.Games.Entities;
 using MHServerEmu.Games.GameData;
 using MHServerEmu.Games.GameData.Prototypes;
+using MHServerEmu.Games.Locales;
 using MHServerEmu.Games.Missions;
 using MHServerEmu.Games.MTXStore;
 using MHServerEmu.Games.Properties;
@@ -120,6 +122,10 @@ namespace MHServerEmu.Games.Network
 
                 case ServiceMessage.MTXStoreAddFreeGGameRequest mtxStoreAddFreeGGameRequest:
                     OnMTXStoreAddFreeGGameRequest(mtxStoreAddFreeGGameRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeCurrencyGameRequest mtxStoreAddFreeCurrencyGameRequest:
+                    OnMTXStoreAddFreeCurrencyGameRequest(mtxStoreAddFreeCurrencyGameRequest);
                     break;
 
                 default:
@@ -433,7 +439,12 @@ namespace MHServerEmu.Games.Network
             float conversionRatio = config.ESToGazillioniteConversionRatio;
             int conversionStep = config.ESToGazillioniteConversionStep;
 
-            ServiceMessage.MTXStoreESBalanceGameResponse response = new(mtxStoreESBalanceGameRequest.RequestId, currentBalance, conversionRatio, conversionStep, config.FreeGEnabled);
+            ServiceMessage.MTXStoreCurrencyBalance[] freeCurrencies = config.FreeCurrencyEnabled
+                ? GetFreeCurrencies().Select(currencyProtoRef => new ServiceMessage.MTXStoreCurrencyBalance((ulong)currencyProtoRef,
+                    GetCurrencyDisplayName(currencyProtoRef), player.Properties[PropertyEnum.Currency, currencyProtoRef])).ToArray()
+                : [];
+
+            ServiceMessage.MTXStoreESBalanceGameResponse response = new(mtxStoreESBalanceGameRequest.RequestId, currentBalance, conversionRatio, conversionStep, config.FreeGEnabled, freeCurrencies);
             ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
         }
 
@@ -462,6 +473,101 @@ namespace MHServerEmu.Games.Network
 
             ServiceMessage.MTXStoreAddFreeGGameResponse response = new(mtxStoreAddFreeGGameRequest.RequestId, result);
             ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
+        }
+
+        private void OnMTXStoreAddFreeCurrencyGameRequest(in ServiceMessage.MTXStoreAddFreeCurrencyGameRequest mtxStoreAddFreeCurrencyGameRequest)
+        {
+            Player player = Game.EntityManager.GetEntityByDbGuid<Player>(mtxStoreAddFreeCurrencyGameRequest.PlayerDbId);
+            if (!Verify.IsNotNull(player)) return;
+
+            var config = ConfigManager.Instance.GetConfig<MTXStoreConfig>();
+            PrototypeId currencyProtoRef = (PrototypeId)mtxStoreAddFreeCurrencyGameRequest.CurrencyProtoRef;
+            int amount = mtxStoreAddFreeCurrencyGameRequest.Amount;
+
+            PropertyId currencyPropId = new(PropertyEnum.Currency, currencyProtoRef);
+            bool result = false;
+
+            if (config.FreeCurrencyEnabled && amount > 0 && amount <= config.FreeCurrencyMaxAmount && GetFreeCurrencies().Contains(currencyProtoRef))
+            {
+                // Respect the currency's own cap (0 means uncapped), and keep the balance within int range.
+                CurrencyPrototype currencyProto = currencyProtoRef.As<CurrencyPrototype>();
+                long maxBalance = currencyProto.MaxAmount > 0 ? currencyProto.MaxAmount : int.MaxValue;
+                int balance = player.Properties[currencyPropId];
+                int added = (int)Math.Min(amount, maxBalance - balance);
+
+                if (added > 0)
+                {
+                    player.Properties.AdjustProperty(added, currencyPropId);
+                    Logger.Info($"[{player.PlayerConnection}] added {added} free {GetCurrencyDisplayName(currencyProtoRef)}", LogCategory.MTXStore);
+                    result = true;
+                }
+            }
+
+            ServiceMessage.MTXStoreAddFreeCurrencyGameResponse response = new(mtxStoreAddFreeCurrencyGameRequest.RequestId, result, player.Properties[currencyPropId]);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
+        }
+
+        /// <summary>
+        /// In-game English names of currencies, keyed by prototype name. Locale files aren't loaded by default, and many prototype
+        /// names don't match what players saw (GrootCurrency is Planet X Bark). Taken from the 1.52 eng.all strings, except that
+        /// MarvelousDustCurrency is mislabeled "Seals of Conflict" there (its tooltip calls it Marvelous Dust).
+        /// </summary>
+        private static readonly Dictionary<string, string> CurrencyDisplayNames = new()
+        {
+            { "BountyCurrency",             "A.R.M.O.R. Research Drives" },
+            { "CivilWarCurrency",           "Seals of Conflict" },
+            { "CosmicWorldstoneCurrency",   "Cosmic Worldstones" },
+            { "CreditsCurrency",            "Credits" },
+            { "CubeShardCurrency",          "Cube Shards" },
+            { "DangerRoomCurrency",         "Danger Room Merits" },
+            { "EternitySplinterCurrency",   "Eternity Splinters" },
+            { "GenoshaRaidCurrency",        "Champion's Commendations" },
+            { "GrootCurrency",              "Planet X Bark" },
+            { "HeroCommendation",           "Hero's Commendations" },
+            { "LegendaryMarksCurrency",     "Odin Marks" },
+            { "MarvelousDustCurrency",      "Marvelous Dust" },
+            { "OmegaFile",                  "S.H.I.E.L.D. Omega Access Files" },
+            { "PatrolMarksCurrency",        "Patrol Marks" },
+            { "ProtectorsCommendation",     "Protector's Commendations" },
+            { "PvPGoldenCrownCurrency",     "Crowns of Valor" },
+            { "RunestoneCurrency",          "Runestones" },
+            { "TestCurrency",               "Blamey Bucks" },
+        };
+
+        /// <summary>
+        /// Returns the currencies the add G panel can grant, credits first. G has its own buttons, so it's not included.
+        /// </summary>
+        private static List<PrototypeId> GetFreeCurrencies()
+        {
+            PrototypeId creditsProtoRef = GameDatabase.CurrencyGlobalsPrototype.Credits;
+            PrototypeId gazillioniteProtoRef = GameDatabase.CurrencyGlobalsPrototype.GazillioniteGs;
+
+            List<PrototypeId> currencies = new();
+            foreach (PrototypeId currencyProtoRef in GameDatabase.DataDirectory.IteratePrototypesInHierarchy<CurrencyPrototype>(PrototypeIterateFlags.NoAbstractApprovedOnly))
+            {
+                if (currencyProtoRef != gazillioniteProtoRef)
+                    currencies.Add(currencyProtoRef);
+            }
+
+            return currencies.OrderBy(currencyProtoRef => currencyProtoRef != creditsProtoRef).ThenBy(GetCurrencyDisplayName).ToList();
+        }
+
+        private static string GetCurrencyDisplayName(PrototypeId currencyProtoRef)
+        {
+            string name = GameDatabase.GetFormattedPrototypeName(currencyProtoRef);
+            if (CurrencyDisplayNames.TryGetValue(name, out string displayName))
+                return displayName;
+
+            CurrencyPrototype currencyProto = currencyProtoRef.As<CurrencyPrototype>();
+            displayName = LocaleManager.Instance.CurrentLocale?.GetLocaleString(currencyProto.DisplayName);
+            if (string.IsNullOrEmpty(displayName) == false)
+                return displayName;
+
+            // Neither known nor localized, so fall back to the prototype name ("PvPGoldenCrownCurrency" -> "PvP Golden Crown").
+            if (name.Length > "Currency".Length && name.EndsWith("Currency"))
+                name = name[..^"Currency".Length];
+
+            return Regex.Replace(name, "(?<=[A-Za-z])(?=[A-Z][a-z])", " ");
         }
 
         #endregion

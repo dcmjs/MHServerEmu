@@ -29,6 +29,14 @@ namespace MHServerEmu.WebFrontend.Network
                     GameServiceTaskManager.Instance.OnMTXStoreAddFreeCurrencyResponse(mtxStoreAddFreeCurrencyResponse);
                     break;
 
+                case ServiceMessage.MTXStoreItemSearchResponse mtxStoreItemSearchResponse:
+                    GameServiceTaskManager.Instance.OnMTXStoreItemSearchResponse(mtxStoreItemSearchResponse);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeItemResponse mtxStoreAddFreeItemResponse:
+                    GameServiceTaskManager.Instance.OnMTXStoreAddFreeItemResponse(mtxStoreAddFreeItemResponse);
+                    break;
+
                 case ServiceMessage.AccountOperationResponse accountOperationResponse:
                     GameServiceTaskManager.Instance.OnAccountOperationResponse(accountOperationResponse);
                     break;

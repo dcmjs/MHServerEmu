@@ -51,6 +51,8 @@ namespace MHServerEmu.WebFrontend
             _webService.RegisterHandler("/MTXStore/AddG/Submit", new AddGSubmitWebHandler());
             _webService.RegisterHandler("/MTXStore/AddG/Free", new AddGFreeWebHandler());
             _webService.RegisterHandler("/MTXStore/AddG/Currency", new AddGCurrencyWebHandler());
+            _webService.RegisterHandler("/MTXStore/AddG/ItemSearch", new AddGItemSearchWebHandler());
+            _webService.RegisterHandler("/MTXStore/AddG/Item", new AddGItemWebHandler());
 
             if (config.EnableWebApi)
             {

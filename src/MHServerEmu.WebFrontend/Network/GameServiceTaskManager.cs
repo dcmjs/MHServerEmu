@@ -20,6 +20,8 @@ namespace MHServerEmu.WebFrontend.Network
         private readonly TaskManager<ServiceMessage.MTXStoreESConvertResponse> _esConvertTaskManager = new();
         private readonly TaskManager<ServiceMessage.MTXStoreAddFreeGResponse> _addFreeGTaskManager = new();
         private readonly TaskManager<ServiceMessage.MTXStoreAddFreeCurrencyResponse> _addFreeCurrencyTaskManager = new();
+        private readonly TaskManager<ServiceMessage.MTXStoreItemSearchResponse> _itemSearchTaskManager = new();
+        private readonly TaskManager<ServiceMessage.MTXStoreAddFreeItemResponse> _addFreeItemTaskManager = new();
         private readonly TaskManager<ServiceMessage.AccountOperationResponse> _accountOperationTaskManager = new();
 
         public static GameServiceTaskManager Instance { get; } = new();
@@ -154,6 +156,58 @@ namespace MHServerEmu.WebFrontend.Network
         public void OnMTXStoreAddFreeCurrencyResponse(in ServiceMessage.MTXStoreAddFreeCurrencyResponse response)
         {
             _addFreeCurrencyTaskManager.CompleteTask(response.RequestId, response);
+        }
+
+        /// <summary>
+        /// Asynchronously searches the items the add G panel can give for free (only when MTXStore FreeItemsEnabled is on).
+        /// </summary>
+        public async Task<ServiceMessage.MTXStoreItemSearchResponse> SearchFreeItemsAsync(string email, string token, string query)
+        {
+            var itemSearchTask = _itemSearchTaskManager.CreateTask();
+
+            ServiceMessage.MTXStoreItemSearchRequest request = new(itemSearchTask.Id, email, token, query);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, request);
+
+            ServiceMessage.MTXStoreItemSearchResponse? response = await CompleteTaskWithTimeout(itemSearchTask);
+
+            if (response == null)
+                return new(itemSearchTask.Id, (int)HttpStatusCode.RequestTimeout);
+
+            return response.Value;
+        }
+
+        /// <summary>
+        /// Completes a previously started item search request.
+        /// </summary>
+        public void OnMTXStoreItemSearchResponse(in ServiceMessage.MTXStoreItemSearchResponse response)
+        {
+            _itemSearchTaskManager.CompleteTask(response.RequestId, response);
+        }
+
+        /// <summary>
+        /// Asynchronously requests free copies of an item for a given account (only granted when MTXStore FreeItemsEnabled is on).
+        /// </summary>
+        public async Task<ServiceMessage.MTXStoreAddFreeItemResponse> AddFreeItemAsync(string email, string token, ulong itemProtoRef, int count)
+        {
+            var addFreeItemTask = _addFreeItemTaskManager.CreateTask();
+
+            ServiceMessage.MTXStoreAddFreeItemRequest request = new(addFreeItemTask.Id, email, token, itemProtoRef, count);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, request);
+
+            ServiceMessage.MTXStoreAddFreeItemResponse? response = await CompleteTaskWithTimeout(addFreeItemTask);
+
+            if (response == null)
+                return new(addFreeItemTask.Id, (int)HttpStatusCode.RequestTimeout);
+
+            return response.Value;
+        }
+
+        /// <summary>
+        /// Completes a previously started free item request.
+        /// </summary>
+        public void OnMTXStoreAddFreeItemResponse(in ServiceMessage.MTXStoreAddFreeItemResponse response)
+        {
+            _addFreeItemTaskManager.CompleteTask(response.RequestId, response);
         }
 
         /// <summary>

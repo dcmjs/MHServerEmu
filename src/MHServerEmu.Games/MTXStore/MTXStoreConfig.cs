@@ -11,6 +11,8 @@ namespace MHServerEmu.Games.MTXStore
         public int FreeGMaxAmount { get; private set; } = 10000;
         public bool FreeCurrencyEnabled { get; private set; } = false;
         public int FreeCurrencyMaxAmount { get; private set; } = 1000000;
+        public bool FreeItemsEnabled { get; private set; } = false;
+        public int FreeItemsMaxCount { get; private set; } = 100;
         public long GiftingOmegaLevelRequired { get; private set; } = 0;
         public long GiftingInfinityLevelRequired { get; private set; } = 0;
 

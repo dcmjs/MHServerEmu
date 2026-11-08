@@ -152,6 +152,22 @@ namespace MHServerEmu.PlayerManagement.Network
                     OnMTXStoreAddFreeCurrencyGameResponse(mtxStoreAddFreeCurrencyGameResponse);
                     break;
 
+                case ServiceMessage.MTXStoreItemSearchRequest mtxStoreItemSearchRequest:
+                    OnMTXStoreItemSearchRequest(mtxStoreItemSearchRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreItemSearchGameResponse mtxStoreItemSearchGameResponse:
+                    OnMTXStoreItemSearchGameResponse(mtxStoreItemSearchGameResponse);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeItemRequest mtxStoreAddFreeItemRequest:
+                    OnMTXStoreAddFreeItemRequest(mtxStoreAddFreeItemRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeItemGameResponse mtxStoreAddFreeItemGameResponse:
+                    OnMTXStoreAddFreeItemGameResponse(mtxStoreAddFreeItemGameResponse);
+                    break;
+
                 case ServiceMessage.AccountOperationRequest accountOperationRequest:
                     OnAccountOperationRequest(accountOperationRequest);
                     break;
@@ -500,9 +516,12 @@ namespace MHServerEmu.PlayerManagement.Network
             int conversionStep = mtxStoreESBalanceGameResponse.ConversionStep;
             bool freeGEnabled = mtxStoreESBalanceGameResponse.FreeGEnabled;
             ServiceMessage.MTXStoreCurrencyBalance[] freeCurrencies = mtxStoreESBalanceGameResponse.FreeCurrencies;
+            bool freeItemsEnabled = mtxStoreESBalanceGameResponse.FreeItemsEnabled;
+            int freeItemsMaxCount = mtxStoreESBalanceGameResponse.FreeItemsMaxCount;
 
             // We should have already handled authentication before routing the request to the game instance, so just route the result back.
-            ServiceMessage.MTXStoreESBalanceResponse response = new(requestId, (int)HttpStatusCode.OK, currentBalance, conversionRate, conversionStep, freeGEnabled, freeCurrencies);
+            ServiceMessage.MTXStoreESBalanceResponse response = new(requestId, (int)HttpStatusCode.OK, currentBalance, conversionRate, conversionStep, freeGEnabled, freeCurrencies,
+                freeItemsEnabled, freeItemsMaxCount);
             ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
         }
 
@@ -621,6 +640,77 @@ namespace MHServerEmu.PlayerManagement.Network
 
             ServiceMessage.MTXStoreAddFreeCurrencyResponse response = new(requestId, result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.Forbidden, balance);
             ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+        }
+
+        private void OnMTXStoreItemSearchRequest(in ServiceMessage.MTXStoreItemSearchRequest mtxStoreItemSearchRequest)
+        {
+            ulong requestId = mtxStoreItemSearchRequest.RequestId;
+
+            PlayerHandle player = GetInGamePlayerForAddGPanel(mtxStoreItemSearchRequest.Email, mtxStoreItemSearchRequest.Token, "item search");
+            if (player == null)
+            {
+                ServiceMessage.MTXStoreItemSearchResponse response = new(requestId, (int)HttpStatusCode.Forbidden);
+                ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+                return;
+            }
+
+            // The game instance checks whether free items are enabled, since that's where the config and game data live.
+            ServiceMessage.MTXStoreItemSearchGameRequest gameRequest = new(requestId, player.CurrentGame.Id, player.PlayerDbId, mtxStoreItemSearchRequest.Query);
+            ServerManager.Instance.SendMessageToService(GameServiceType.GameInstance, gameRequest);
+        }
+
+        private void OnMTXStoreItemSearchGameResponse(in ServiceMessage.MTXStoreItemSearchGameResponse mtxStoreItemSearchGameResponse)
+        {
+            ulong requestId = mtxStoreItemSearchGameResponse.RequestId;
+            int statusCode = mtxStoreItemSearchGameResponse.Result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.Forbidden;
+
+            ServiceMessage.MTXStoreItemSearchResponse response = new(requestId, statusCode, mtxStoreItemSearchGameResponse.Items, mtxStoreItemSearchGameResponse.Truncated);
+            ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+        }
+
+        private void OnMTXStoreAddFreeItemRequest(in ServiceMessage.MTXStoreAddFreeItemRequest mtxStoreAddFreeItemRequest)
+        {
+            ulong requestId = mtxStoreAddFreeItemRequest.RequestId;
+
+            PlayerHandle player = GetInGamePlayerForAddGPanel(mtxStoreAddFreeItemRequest.Email, mtxStoreAddFreeItemRequest.Token, "free item");
+            if (player == null)
+            {
+                ServiceMessage.MTXStoreAddFreeItemResponse response = new(requestId, (int)HttpStatusCode.Forbidden);
+                ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+                return;
+            }
+
+            // The game instance checks whether free items are enabled and the item is valid.
+            ServiceMessage.MTXStoreAddFreeItemGameRequest gameRequest = new(requestId, player.CurrentGame.Id, player.PlayerDbId,
+                mtxStoreAddFreeItemRequest.ItemProtoRef, mtxStoreAddFreeItemRequest.Count);
+            ServerManager.Instance.SendMessageToService(GameServiceType.GameInstance, gameRequest);
+        }
+
+        private void OnMTXStoreAddFreeItemGameResponse(in ServiceMessage.MTXStoreAddFreeItemGameResponse mtxStoreAddFreeItemGameResponse)
+        {
+            ulong requestId = mtxStoreAddFreeItemGameResponse.RequestId;
+            int statusCode = mtxStoreAddFreeItemGameResponse.Result ? (int)HttpStatusCode.OK : (int)HttpStatusCode.Forbidden;
+
+            ServiceMessage.MTXStoreAddFreeItemResponse response = new(requestId, statusCode, mtxStoreAddFreeItemGameResponse.Given);
+            ServerManager.Instance.SendMessageToService(GameServiceType.WebFrontend, response);
+        }
+
+        /// <summary>
+        /// Authenticates a request from the add G panel. Returns the player if they are in game, or <see langword="null"/>.
+        /// </summary>
+        private PlayerHandle GetInGamePlayerForAddGPanel(string email, string token, string requestName)
+        {
+            PlayerHandle player = null;
+
+            VerifyPlatformTicketResult vptResult = _playerManager.SessionManager.VerifyPlatformTicket(email, token, out ulong playerDbId);
+            if (Verify.IsTrue(vptResult == VerifyPlatformTicketResult.Success, $"Failed to verify platform ticket when processing {requestName} request! result={vptResult}"))
+                player = _playerManager.ClientManager.GetPlayer(playerDbId);
+
+            if (player == null || player.State != PlayerHandleState.InGame)
+                return null;
+
+            Logger.Trace($"Authenticated {requestName} request from player [{player}]");
+            return player;
         }
 
         private void OnAccountOperationRequest(in ServiceMessage.AccountOperationRequest accountOperationRequest)

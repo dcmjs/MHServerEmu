@@ -7,6 +7,7 @@ using MHServerEmu.Games.Entities;
 using MHServerEmu.Games.GameData;
 using MHServerEmu.Games.GameData.Prototypes;
 using MHServerEmu.Games.Locales;
+using MHServerEmu.Games.Loot;
 using MHServerEmu.Games.Missions;
 using MHServerEmu.Games.MTXStore;
 using MHServerEmu.Games.Properties;
@@ -126,6 +127,14 @@ namespace MHServerEmu.Games.Network
 
                 case ServiceMessage.MTXStoreAddFreeCurrencyGameRequest mtxStoreAddFreeCurrencyGameRequest:
                     OnMTXStoreAddFreeCurrencyGameRequest(mtxStoreAddFreeCurrencyGameRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreItemSearchGameRequest mtxStoreItemSearchGameRequest:
+                    OnMTXStoreItemSearchGameRequest(mtxStoreItemSearchGameRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeItemGameRequest mtxStoreAddFreeItemGameRequest:
+                    OnMTXStoreAddFreeItemGameRequest(mtxStoreAddFreeItemGameRequest);
                     break;
 
                 default:
@@ -444,7 +453,8 @@ namespace MHServerEmu.Games.Network
                     GetCurrencyDisplayName(currencyProtoRef), player.Properties[PropertyEnum.Currency, currencyProtoRef])).ToArray()
                 : [];
 
-            ServiceMessage.MTXStoreESBalanceGameResponse response = new(mtxStoreESBalanceGameRequest.RequestId, currentBalance, conversionRatio, conversionStep, config.FreeGEnabled, freeCurrencies);
+            ServiceMessage.MTXStoreESBalanceGameResponse response = new(mtxStoreESBalanceGameRequest.RequestId, currentBalance, conversionRatio, conversionStep, config.FreeGEnabled, freeCurrencies,
+                config.FreeItemsEnabled, config.FreeItemsMaxCount);
             ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
         }
 
@@ -504,6 +514,53 @@ namespace MHServerEmu.Games.Network
             }
 
             ServiceMessage.MTXStoreAddFreeCurrencyGameResponse response = new(mtxStoreAddFreeCurrencyGameRequest.RequestId, result, player.Properties[currencyPropId]);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
+        }
+
+        private void OnMTXStoreItemSearchGameRequest(in ServiceMessage.MTXStoreItemSearchGameRequest mtxStoreItemSearchGameRequest)
+        {
+            var config = ConfigManager.Instance.GetConfig<MTXStoreConfig>();
+
+            ServiceMessage.MTXStoreItemSearchResult[] items = [];
+            bool truncated = false;
+
+            if (config.FreeItemsEnabled)
+            {
+                items = FreeItemCatalog.Search(mtxStoreItemSearchGameRequest.Query, out truncated)
+                    .Select(entry => new ServiceMessage.MTXStoreItemSearchResult((ulong)entry.ProtoRef, entry.Name, entry.Category, entry.Path))
+                    .ToArray();
+            }
+
+            ServiceMessage.MTXStoreItemSearchGameResponse response = new(mtxStoreItemSearchGameRequest.RequestId, config.FreeItemsEnabled, items, truncated);
+            ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
+        }
+
+        private void OnMTXStoreAddFreeItemGameRequest(in ServiceMessage.MTXStoreAddFreeItemGameRequest mtxStoreAddFreeItemGameRequest)
+        {
+            Player player = Game.EntityManager.GetEntityByDbGuid<Player>(mtxStoreAddFreeItemGameRequest.PlayerDbId);
+            if (!Verify.IsNotNull(player)) return;
+
+            var config = ConfigManager.Instance.GetConfig<MTXStoreConfig>();
+            PrototypeId itemProtoRef = (PrototypeId)mtxStoreAddFreeItemGameRequest.ItemProtoRef;
+            int count = mtxStoreAddFreeItemGameRequest.Count;
+            int given = 0;
+
+            if (config.FreeItemsEnabled && count > 0 && count <= config.FreeItemsMaxCount && FreeItemCatalog.Contains(itemProtoRef))
+            {
+                // Same as the !item give command. Items that don't fit in the general inventory go to the delivery box.
+                for (int i = 0; i < count; i++)
+                {
+                    if (Game.LootManager.GiveItem(itemProtoRef, LootContext.CashShop, player) == false)
+                        break;
+
+                    given++;
+                }
+
+                if (given > 0)
+                    Logger.Info($"[{player.PlayerConnection}] added {given} free {itemProtoRef.GetName()}", LogCategory.MTXStore);
+            }
+
+            ServiceMessage.MTXStoreAddFreeItemGameResponse response = new(mtxStoreAddFreeItemGameRequest.RequestId, given > 0, given);
             ServerManager.Instance.SendMessageToService(GameServiceType.PlayerManager, response);
         }
 

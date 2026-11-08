@@ -251,6 +251,61 @@
 			color: #00aaff;
 			font: 22px / 1 "Bebas Neue", "Trebuchet MS", Verdana, sans-serif;
 		}
+		#item-query {
+			width: 360px;
+			max-width: 100%;
+			height: 34px;
+			padding: 0px 10px;
+			text-align: left;
+			font-size: 20px;
+		}
+		div.currency-picker button {
+			padding: 8px 24px 6px 24px;
+		}
+		#item-status {
+			min-height: 1.4em;
+			margin: 8px 0px;
+			font-size: 15px;
+			color: #9aa4a8;
+		}
+		div.item-results {
+			max-height: 300px;
+			overflow-y: auto;
+			border: 1px solid #383838;
+			border-radius: 6px;
+			box-shadow: inset 0 0 8px #383838;
+		}
+		div.item-results:empty {
+			display: none;
+		}
+		div.item-row {
+			padding: 6px 12px;
+			border-bottom: 1px solid #1f2a2e;
+			cursor: pointer;
+		}
+		div.item-row:last-child {
+			border-bottom: none;
+		}
+		div.item-row:hover {
+			background: #0b2230;
+		}
+		div.item-row.selected {
+			background: #00405e;
+			box-shadow: inset 3px 0 0 #00aaff;
+		}
+		div.item-name {
+			color: white;
+			font-size: 16px;
+		}
+		div.item-detail {
+			color: #7f8a8e;
+			font-size: 12px;
+		}
+		#item-selected {
+			margin: 14px 0px 0px 0px;
+			color: #00aaff;
+			font: 22px / 1.2 "Bebas Neue", "Trebuchet MS", Verdana, sans-serif;
+		}
 	</style>
 </head>
 <body>
@@ -305,6 +360,21 @@
 				<button onclick="addFreeCurrency(1000000)">Add 1,000,000</button>
 			</div>
 		</div>
+		<div id="free-items" style="display: none;">
+			<hr />
+			<h2>Add Items</h2>
+			<p>Search for an item by its in-game name, pick it from the list, then choose how many to add. Anything that doesn't fit in your inventory goes to your delivery box.</p>
+			<div class="currency-picker">
+				<input type="text" id="item-query" maxlength="100" placeholder="e.g. Ancient Forgotten Device" onkeydown="if (event.keyCode == 13) searchItems();" />
+				<button class="close-button" onclick="searchItems()">Search</button>
+			</div>
+			<p id="item-status" class="center"></p>
+			<div id="item-results" class="item-results"></div>
+			<div id="item-give" style="display: none;">
+				<p id="item-selected" class="center"></p>
+				<div class="free-g-buttons" id="item-count-buttons"></div>
+			</div>
+		</div>
 	</div>
 
 	<div class="modal-popup" id="popup">
@@ -350,6 +420,8 @@
 			conversionRatio: Math.max(Number("%CONVERSION_RATIO%"), 0),
 			conversionStep: Math.max(Number("%CONVERSION_STEP%"), 1),
 			freeGEnabled: "%FREE_G_ENABLED%" == "true",
+			freeItemsEnabled: "%FREE_ITEMS_ENABLED%" == "true",
+			freeItemsMaxCount: Math.max(Number("%FREE_ITEMS_MAX_COUNT%"), 0),
 		});
 
 		// [{ Id, Name, Balance }], empty unless free currency is enabled. Balances are updated as currency is added.
@@ -462,6 +534,136 @@
 			sendRequest("/Currency", amount, "Adding " + currency.Name + "...", successText, "Could not add " + currency.Name, true, { Currency: currency.Id });
 		}
 
+		// The item picked from the search results: { Id, Name, Category, Path }.
+		var selectedItem = null;
+		var itemSearchXhr = null;
+
+		function setItemStatus(text) {
+			document.getElementById("item-status").innerText = text;
+		}
+
+		function searchItems() {
+			var query = document.getElementById("item-query").value.replace(/^\s+|\s+$/g, "");
+			if (query.length == 0) {
+				setItemStatus("Type part of an item's name to search.");
+				return;
+			}
+
+			if (itemSearchXhr != null)
+				itemSearchXhr.abort();
+
+			// The first search after the server starts reads every item, which can take a few seconds.
+			setItemStatus("Searching...");
+
+			var xhr = new XMLHttpRequest();
+			itemSearchXhr = xhr;
+			xhr.open("POST", window.location.href + "/ItemSearch", true);
+			xhr.onreadystatechange = function() {
+				if (xhr.readyState != 4 || itemSearchXhr != xhr)
+					return;
+
+				itemSearchXhr = null;
+
+				if (xhr.status != 200) {
+					setItemStatus("Search failed (" + xhr.status + ").");
+					return;
+				}
+
+				var result = JSON.parse(xhr.responseText);
+				showItemResults(result.Items, result.Truncated);
+			};
+			xhr.setRequestHeader("Content-Type", "application/json");
+			xhr.send(JSON.stringify({ Email: requestContext.email, Token: requestContext.token, Query: query }));
+		}
+
+		function showItemResults(items, truncated) {
+			var list = document.getElementById("item-results");
+			while (list.firstChild)
+				list.removeChild(list.firstChild);
+
+			selectItem(null, null);
+
+			if (items.length == 0) {
+				setItemStatus("No items match that search.");
+				return;
+			}
+
+			setItemStatus(truncated
+				? "Showing the first " + items.length + " matches. Add more words to narrow it down."
+				: items.length + (items.length == 1 ? " match." : " matches."));
+
+			for (var i = 0; i < items.length; i++)
+				list.appendChild(createItemRow(items[i]));
+
+			list.scrollTop = 0;
+
+			if (items.length == 1)
+				selectItem(items[0], list.firstChild);
+		}
+
+		function createItemRow(item) {
+			var row = document.createElement("div");
+			row.className = "item-row";
+
+			var name = document.createElement("div");
+			name.className = "item-name";
+			name.innerText = item.Name;
+			row.appendChild(name);
+
+			var detail = document.createElement("div");
+			detail.className = "item-detail";
+			detail.innerText = item.Path;
+			row.appendChild(detail);
+
+			row.onclick = function() { selectItem(item, row); };
+			return row;
+		}
+
+		function selectItem(item, row) {
+			var rows = document.getElementById("item-results").childNodes;
+			for (var i = 0; i < rows.length; i++)
+				rows[i].className = rows[i] == row ? "item-row selected" : "item-row";
+
+			selectedItem = item;
+			document.getElementById("item-give").style.display = item ? "block" : "none";
+			if (item)
+				document.getElementById("item-selected").innerText = item.Name;
+		}
+
+		function addFreeItem(count) {
+			var item = selectedItem;
+			if (!item)
+				return;
+
+			// Overflow goes to the delivery box, and the server stops early if an item can't be given, so report what it actually gave.
+			var successText = function(xhr) {
+				var given = JSON.parse(xhr.responseText).Given;
+				var text = given < count
+					? "Added " + given + " of " + count + " " + item.Name + "."
+					: "Added " + given + " \u00d7 " + item.Name + ".";
+				return text + " Check your inventory, or your delivery box if your inventory is full.";
+			};
+
+			sendRequest("/Item", count, "Adding " + item.Name + "...", successText, "Could not add " + item.Name, true, { Item: item.Id });
+		}
+
+		function initializeFreeItems() {
+			var counts = [1, 5, 10, 25, 100];
+			var container = document.getElementById("item-count-buttons");
+
+			for (var i = 0; i < counts.length; i++) {
+				if (counts[i] > requestContext.freeItemsMaxCount)
+					continue;
+
+				var button = document.createElement("button");
+				button.innerText = "Add " + counts[i];
+				button.onclick = (function(count) { return function() { addFreeItem(count); }; })(counts[i]);
+				container.appendChild(button);
+			}
+
+			document.getElementById("free-items").style.display = "block";
+		}
+
 		function sendRequest(path, amount, pendingText, successText, errorText, offerMore, extraFields) {
 			document.getElementById("popup-pending-text").innerText = pendingText;
 			showPopup(PopupType.PENDING);
@@ -516,7 +718,7 @@
 					document.getElementById("no-es-note").style.display = "block";
 					document.getElementById("es-convert").style.display = "none";
 				}
-			} else if (max == 0 && freeCurrencies.length == 0) {
+			} else if (max == 0 && freeCurrencies.length == 0 && !requestContext.freeItemsEnabled) {
 				showPopup(PopupType.LOW_BALANCE);
 			}
 
@@ -528,6 +730,9 @@
 				showCurrencyBalance();
 				document.getElementById("free-currency").style.display = "block";
 			}
+
+			if (requestContext.freeItemsEnabled && requestContext.freeItemsMaxCount > 0)
+				initializeFreeItems();
 		}
 
 		initialize();

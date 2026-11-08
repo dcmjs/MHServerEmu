@@ -763,7 +763,7 @@ namespace MHServerEmu.Core.Network
 
         // PlayerManager -> WebFrontend
         public readonly struct MTXStoreESBalanceResponse(ulong requestId, int statusCode, int currentBalance = 0, float conversionRatio = 0, int conversionStep = 0, bool freeGEnabled = false,
-            MTXStoreCurrencyBalance[] freeCurrencies = null)
+            MTXStoreCurrencyBalance[] freeCurrencies = null, bool freeItemsEnabled = false, int freeItemsMaxCount = 0)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;
@@ -773,6 +773,8 @@ namespace MHServerEmu.Core.Network
             public readonly int ConversionStep = conversionStep;
             public readonly bool FreeGEnabled = freeGEnabled;
             public readonly MTXStoreCurrencyBalance[] FreeCurrencies = freeCurrencies;
+            public readonly bool FreeItemsEnabled = freeItemsEnabled;
+            public readonly int FreeItemsMaxCount = freeItemsMaxCount;
         }
 
         /// <summary>
@@ -796,7 +798,7 @@ namespace MHServerEmu.Core.Network
 
         // Game -> PlayerManager
         public readonly struct MTXStoreESBalanceGameResponse(ulong requestId, int currentBalance, float conversionRatio, int conversionStep, bool freeGEnabled,
-            MTXStoreCurrencyBalance[] freeCurrencies)
+            MTXStoreCurrencyBalance[] freeCurrencies, bool freeItemsEnabled, int freeItemsMaxCount)
             : IGameServiceMessage
         {
             public readonly ulong RequestId = requestId;
@@ -805,6 +807,8 @@ namespace MHServerEmu.Core.Network
             public readonly int ConversionStep = conversionStep;
             public readonly bool FreeGEnabled = freeGEnabled;
             public readonly MTXStoreCurrencyBalance[] FreeCurrencies = freeCurrencies;
+            public readonly bool FreeItemsEnabled = freeItemsEnabled;
+            public readonly int FreeItemsMaxCount = freeItemsMaxCount;
         }
 
         // WebFrontend -> PlayerManager
@@ -917,6 +921,97 @@ namespace MHServerEmu.Core.Network
             public readonly ulong RequestId = requestId;
             public readonly bool Result = result;
             public readonly int Balance = balance;
+        }
+
+        /// <summary>
+        /// An item the add G panel found for a search. Empty unless MTXStore FreeItemsEnabled is on.
+        /// </summary>
+        public readonly struct MTXStoreItemSearchResult(ulong itemProtoRef, string name, string category, string path)
+        {
+            public readonly ulong ItemProtoRef = itemProtoRef;
+            public readonly string Name = name;
+            public readonly string Category = category;
+            public readonly string Path = path;
+        }
+
+        // WebFrontend -> PlayerManager
+        public readonly struct MTXStoreItemSearchRequest(ulong requestId, string email, string token, string query)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly string Email = email;
+            public readonly string Token = token;
+            public readonly string Query = query;
+        }
+
+        // PlayerManager -> WebFrontend
+        public readonly struct MTXStoreItemSearchResponse(ulong requestId, int statusCode, MTXStoreItemSearchResult[] items = null, bool truncated = false)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly int StatusCode = statusCode;
+            public readonly MTXStoreItemSearchResult[] Items = items;
+            public readonly bool Truncated = truncated;
+        }
+
+        // PlayerManager -> Game
+        public readonly struct MTXStoreItemSearchGameRequest(ulong requestId, ulong gameId, ulong playerDbId, string query)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly ulong GameId = gameId;
+            public readonly ulong PlayerDbId = playerDbId;
+            public readonly string Query = query;
+        }
+
+        // Game -> PlayerManager
+        public readonly struct MTXStoreItemSearchGameResponse(ulong requestId, bool result, MTXStoreItemSearchResult[] items, bool truncated)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly bool Result = result;
+            public readonly MTXStoreItemSearchResult[] Items = items;
+            public readonly bool Truncated = truncated;
+        }
+
+        // WebFrontend -> PlayerManager
+        public readonly struct MTXStoreAddFreeItemRequest(ulong requestId, string email, string token, ulong itemProtoRef, int count)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly string Email = email;
+            public readonly string Token = token;
+            public readonly ulong ItemProtoRef = itemProtoRef;
+            public readonly int Count = count;
+        }
+
+        // PlayerManager -> WebFrontend
+        public readonly struct MTXStoreAddFreeItemResponse(ulong requestId, int statusCode, int given = 0)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly int StatusCode = statusCode;
+            public readonly int Given = given;
+        }
+
+        // PlayerManager -> Game
+        public readonly struct MTXStoreAddFreeItemGameRequest(ulong requestId, ulong gameId, ulong playerDbId, ulong itemProtoRef, int count)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly ulong GameId = gameId;
+            public readonly ulong PlayerDbId = playerDbId;
+            public readonly ulong ItemProtoRef = itemProtoRef;
+            public readonly int Count = count;
+        }
+
+        // Game -> PlayerManager
+        public readonly struct MTXStoreAddFreeItemGameResponse(ulong requestId, bool result, int given)
+            : IGameServiceMessage
+        {
+            public readonly ulong RequestId = requestId;
+            public readonly bool Result = result;
+            public readonly int Given = given;
         }
 
         #endregion

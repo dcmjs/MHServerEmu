@@ -73,6 +73,8 @@ namespace MHServerEmu.WebFrontend.Handlers.MTXStore
             sb.Replace("%CONVERSION_STEP%", $"{balanceResponse.ConversionStep}");
             sb.Replace("%FREE_G_ENABLED%", balanceResponse.FreeGEnabled ? "true" : "false");
             sb.Replace("%FREE_CURRENCIES%", SerializeFreeCurrencies(balanceResponse.FreeCurrencies));
+            sb.Replace("%FREE_ITEMS_ENABLED%", balanceResponse.FreeItemsEnabled ? "true" : "false");
+            sb.Replace("%FREE_ITEMS_MAX_COUNT%", $"{balanceResponse.FreeItemsMaxCount}");
             string html = sb.ToString();
 
             await context.SendAsync(html, "text/html");

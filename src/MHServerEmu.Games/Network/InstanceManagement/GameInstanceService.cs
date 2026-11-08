@@ -160,6 +160,14 @@ namespace MHServerEmu.Games.Network.InstanceManagement
                     RouteMessageToGame(mtxStoreAddFreeCurrencyGameRequest.GameId, mtxStoreAddFreeCurrencyGameRequest);
                     break;
 
+                case ServiceMessage.MTXStoreItemSearchGameRequest mtxStoreItemSearchGameRequest:
+                    RouteMessageToGame(mtxStoreItemSearchGameRequest.GameId, mtxStoreItemSearchGameRequest);
+                    break;
+
+                case ServiceMessage.MTXStoreAddFreeItemGameRequest mtxStoreAddFreeItemGameRequest:
+                    RouteMessageToGame(mtxStoreAddFreeItemGameRequest.GameId, mtxStoreAddFreeItemGameRequest);
+                    break;
+
                 default:
                     Verify.IsTrue(false, $"Unhandled service message type {typeof(T).Name}");
                     break;
